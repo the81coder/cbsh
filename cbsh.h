@@ -10,9 +10,9 @@
 #include <unistd.h>
 #include <dirent.h>
 #include <sys/wait.h>
+#include <time.h>
 #include <readline/readline.h>
 #include <readline/history.h>
-#include "config.h"
 
 #define MAX_LINE_LENGTH 256
 #define MAX_NUM_LINES 1000
@@ -37,7 +37,8 @@ typedef enum {
     KW_SQR, KW_RND, KW_SIN, KW_LET, KW_USR, KW_DATA, KW_READ, KW_REM,
     KW_CLEAR, KW_STOP, KW_TAB, KW_RESTORE, KW_ABS, KW_END, KW_INT,
     KW_RETURN, KW_STEP, KW_GOTO, KW_GOSUB, KW_SET, KW_TO, KW_RUN, KW_NONE,
-    KW_LOAD, KW_DIR, KW_ADD, KW_SUB, KW_DIV, KW_FLOOR
+    KW_LOAD, KW_DIR, KW_ADD, KW_SUB, KW_DIV, KW_FLOOR,
+    KW_DUMP, KW_PAUSE  // Unofficial commands
 } Keyword;
 
 // A structure to represent a token
@@ -121,13 +122,27 @@ void executeGoto(Token *tokens, int numTokens);
 void executeGosub(Token *tokens, int numTokens);
 void executeReturn();
 void executeEnd();
+void executeStop();
+void executeClear();
 void runProgram(int startLine);
 void addLine(Line *newLine);
 
 // Math operations
-void executeAdd(char *arg1, char *arg2);
-void executeSub(char *arg1, char *arg2);
-void executeDiv(char *arg1, char *arg2);
-void executeFloor(char *arg);
+void executeAdd(Token *tokens, int numTokens);
+void executeSub(Token *tokens, int numTokens);
+void executeDiv(Token *tokens, int numTokens);
+void executeFloor(Token *tokens, int numTokens);
+
+// Unofficial commands
+void executeDump();
+void executePause(Token *tokens, int numTokens);
+
+// Math function evaluation
+double evalSqr(double value);
+double evalRnd(double value);
+double evalSin(double value);
+double evalAbs(double value);
+double evalInt(double value);
+int evalUsr(double address);
 
 #endif // CBSH_H
