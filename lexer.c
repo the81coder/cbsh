@@ -81,6 +81,14 @@ Token getNextToken(char *line, int *pos) {
         else if (strcasecmp(token.value, "DIV") == 0) token.keyword = KW_DIV;
         else if (strcasecmp(token.value, "FLOOR") == 0) token.keyword = KW_FLOOR;
         else if (strcasecmp(token.value, "SUB") == 0) token.keyword = KW_SUB;
+        else if (strcasecmp(token.value, "COS") == 0) token.keyword = KW_COS;
+        else if (strcasecmp(token.value, "TAN") == 0) token.keyword = KW_TAN;
+        else if (strcasecmp(token.value, "ATN") == 0) token.keyword = KW_ATN;
+        else if (strcasecmp(token.value, "EXP") == 0) token.keyword = KW_EXP;
+        else if (strcasecmp(token.value, "LOG") == 0) token.keyword = KW_LOG;
+        else if (strcasecmp(token.value, "HELP") == 0) token.keyword = KW_HELP;
+        else if (strcasecmp(token.value, "RANDOMIZE") == 0) token.keyword = KW_RANDOMIZE;
+        else if (strcasecmp(token.value, "RANDOM") == 0) token.keyword = KW_RANDOMIZE;
 
         if (token.keyword != KW_NONE) {
             token.type = TOKEN_KEYWORD;
@@ -122,7 +130,7 @@ Token getNextToken(char *line, int *pos) {
             token.type = TOKEN_EOF;
             return token;
         }
-    } else if (strchr("+-*/=<>(),", line[*pos]) != NULL) {
+    } else if (strchr("+-*/=<>(),;", line[*pos]) != NULL) {
         // Operator or punctuation
         token.value[0] = line[*pos];
         token.value[1] = '\0';

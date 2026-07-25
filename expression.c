@@ -1,220 +1,119 @@
 #include "cbsh.h"
 
-// Math function implementations
-double evalSqr(double value) {
-    if (value < 0) {
-        printf("Error: SQR of negative number\n");
+// Forward declarations
+double executeSqr(double);
+double executeRnd(double);
+double executeSin(double);
+double executeCos(double);
+double executeTan(double);
+double executeAtn(double);
+double executeExp(double);
+double executeLog(double);
+double executeAbs(double);
+double executeInt(double);
+
+// Evaluate a function call (e.g., SQR(9) -> tokens are [KW_SQR, "(", num, ")"])
+static double evaluateFunctionCall(Token *tokens, int numTokens) {
+    if (numTokens < 4 || tokens[1].type != TOKEN_OPERATOR || tokens[1].value[0] != '(') {
+        printf("Invalid function call\n");
         return 0;
     }
-    return sqrt(value);
-}
 
-double evalRnd(double value) {
-    // RND(0) returns a random number between 0 and 1
-    // RND(n) where n>0 returns random number between 0 and n-1 (integer)
-    // RND(n) where n<0 reseeds the generator
-    static bool seeded = false;
-    
-    if (!seeded) {
-        srand(time(NULL));
-        seeded = true;
+    int parenDepth = 1;
+    int argStart = 2;
+    int argCount = 0;
+    for (int i = argStart; i < numTokens; i++) {
+        if (tokens[i].type == TOKEN_OPERATOR) {
+            if (tokens[i].value[0] == '(') parenDepth++;
+            else if (tokens[i].value[0] == ')') {
+                parenDepth--;
+                if (parenDepth == 0) break;
+            }
+        }
+        argCount++;
     }
-    
-    if (value < 0) {
-        srand((unsigned int)(-value));
+
+    double arg;
+    if (argCount == 0) {
+        printf("Empty function argument\n");
         return 0;
-    } else if (value == 0) {
-        return (double)rand() / RAND_MAX;
-    } else {
-        return (double)(rand() % (int)value);
+    }
+    arg = evaluateExpression(&tokens[argStart], argCount);
+
+    switch (tokens[0].keyword) {
+        case KW_SQR: return executeSqr(arg);
+        case KW_RND: return executeRnd(arg);
+        case KW_SIN: return executeSin(arg);
+        case KW_COS: return executeCos(arg);
+        case KW_TAN: return executeTan(arg);
+        case KW_ATN: return executeAtn(arg);
+        case KW_EXP: return executeExp(arg);
+        case KW_LOG: return executeLog(arg);
+        case KW_ABS: return executeAbs(arg);
+        case KW_INT: return executeInt(arg);
+        default:
+            printf("Unknown function\n");
+            return 0;
     }
 }
 
-double evalSin(double value) {
-    return sin(value);
-}
-
-double evalAbs(double value) {
-    return fabs(value);
-}
-
-double evalInt(double value) {
-    return floor(value);
-}
-
-int evalUsr(double address) {
-    // USR is a machine language call - not implemented in this interpreter
-    // In real BASIC, this would call a machine language subroutine at address
-    printf("USR function not implemented (would call address %g)\n", address);
+// Evaluate a binary operation
+static double applyOperator(double left, const char *op, double right) {
+    if (strcmp(op, "+") == 0) return left + right;
+    if (strcmp(op, "-") == 0) return left - right;
+    if (strcmp(op, "*") == 0) return left * right;
+    if (strcmp(op, "/") == 0) {
+        if (right == 0) {
+            printf("Division by zero\n");
+            return 0;
+        }
+        return left / right;
+    }
+    if (strcmp(op, "=") == 0) return left == right;
+    if (strcmp(op, "<") == 0) return left < right;
+    if (strcmp(op, ">") == 0) return left > right;
+    printf("Unknown operator: %s\n", op);
     return 0;
 }
 
-// Evaluate an expression with support for functions and operators
+// Evaluate an expression (left-to-right, no operator precedence)
 double evaluateExpression(Token *tokens, int numTokens) {
-    if (numTokens == 0) {
-        return 0;
+    if (numTokens == 0) return 0;
+
+    // Function call: e.g., SQR(9) or SIN(X)
+    if (numTokens >= 4 && tokens[0].type == TOKEN_KEYWORD &&
+        tokens[1].type == TOKEN_OPERATOR && tokens[1].value[0] == '(') {
+        return evaluateFunctionCall(tokens, numTokens);
     }
-    
-    // Handle single value
-    if (numTokens == 1) {
-        return getNumericValue(&tokens[0]);
+
+    // Unary minus: e.g., -5
+    if (numTokens == 2 && tokens[0].type == TOKEN_OPERATOR &&
+        strcmp(tokens[0].value, "-") == 0) {
+        return -getNumericValue(&tokens[1]);
     }
-    
-    // Handle function calls: FUNC(arg)
-    if (numTokens >= 4 && tokens[0].type == TOKEN_KEYWORD && 
-        tokens[1].type == TOKEN_OPERATOR && strcmp(tokens[1].value, "(") == 0) {
-        
-        // Find matching closing parenthesis
-        int parenDepth = 1;
-        int closeParenIndex = -1;
-        for (int i = 2; i < numTokens; i++) {
-            if (tokens[i].type == TOKEN_OPERATOR) {
-                if (strcmp(tokens[i].value, "(") == 0) {
-                    parenDepth++;
-                } else if (strcmp(tokens[i].value, ")") == 0) {
-                    parenDepth--;
-                    if (parenDepth == 0) {
-                        closeParenIndex = i;
-                        break;
-                    }
-                }
-            }
-        }
-        
-        if (closeParenIndex > 2) {
-            double arg = evaluateExpression(&tokens[2], closeParenIndex - 2);
-            
-            switch (tokens[0].keyword) {
-                case KW_SQR:
-                    return evalSqr(arg);
-                case KW_RND:
-                    return evalRnd(arg);
-                case KW_SIN:
-                    return evalSin(arg);
-                case KW_ABS:
-                    return evalAbs(arg);
-                case KW_INT:
-                    return evalInt(arg);
-                case KW_USR:
-                    return evalUsr(arg);
-                default:
-                    printf("Unknown function\n");
-                    return 0;
-            }
+
+    // General expression evaluator (left-to-right)
+    double result;
+    int i = 0;
+
+    // Handle leading unary minus in a longer expression: -A + B
+    if (tokens[0].type == TOKEN_OPERATOR && strcmp(tokens[0].value, "-") == 0) {
+        result = -getNumericValue(&tokens[1]);
+        i = 2;
+    } else {
+        result = getNumericValue(&tokens[0]);
+        i = 1;
+    }
+
+    while (i + 1 < numTokens) {
+        if (tokens[i].type == TOKEN_OPERATOR && strchr("+-*/=<>", tokens[i].value[0]) != NULL) {
+            double right = getNumericValue(&tokens[i + 1]);
+            result = applyOperator(result, tokens[i].value, right);
+            i += 2;
+        } else {
+            break;
         }
     }
-    
-    // Handle parenthesized expressions: (expr)
-    if (numTokens >= 3 && tokens[0].type == TOKEN_OPERATOR && strcmp(tokens[0].value, "(") == 0) {
-        int parenDepth = 1;
-        int closeParenIndex = -1;
-        for (int i = 1; i < numTokens; i++) {
-            if (tokens[i].type == TOKEN_OPERATOR) {
-                if (strcmp(tokens[i].value, "(") == 0) {
-                    parenDepth++;
-                } else if (strcmp(tokens[i].value, ")") == 0) {
-                    parenDepth--;
-                    if (parenDepth == 0) {
-                        closeParenIndex = i;
-                        break;
-                    }
-                }
-            }
-        }
-        
-        if (closeParenIndex == numTokens - 1) {
-            // Entire expression is in parentheses
-            return evaluateExpression(&tokens[1], closeParenIndex - 1);
-        }
-    }
-    
-    // Handle binary operations with proper precedence
-    // First pass: Handle + and - (lowest precedence)
-    for (int i = numTokens - 1; i >= 0; i--) {
-        if (tokens[i].type == TOKEN_OPERATOR) {
-            if (strcmp(tokens[i].value, "+") == 0) {
-                double left = evaluateExpression(tokens, i);
-                double right = evaluateExpression(&tokens[i + 1], numTokens - i - 1);
-                return left + right;
-            } else if (strcmp(tokens[i].value, "-") == 0 && i > 0) {
-                double left = evaluateExpression(tokens, i);
-                double right = evaluateExpression(&tokens[i + 1], numTokens - i - 1);
-                return left - right;
-            }
-        }
-    }
-    
-    // Second pass: Handle * and / (higher precedence)
-    for (int i = numTokens - 1; i >= 0; i--) {
-        if (tokens[i].type == TOKEN_OPERATOR) {
-            if (strcmp(tokens[i].value, "*") == 0) {
-                double left = evaluateExpression(tokens, i);
-                double right = evaluateExpression(&tokens[i + 1], numTokens - i - 1);
-                return left * right;
-            } else if (strcmp(tokens[i].value, "/") == 0) {
-                double left = evaluateExpression(tokens, i);
-                double right = evaluateExpression(&tokens[i + 1], numTokens - i - 1);
-                if (right == 0) {
-                    printf("Division by zero\n");
-                    return 0;
-                }
-                return left / right;
-            }
-        }
-    }
-    
-    // Handle comparison operators: =, <, >, <=, >=, <>
-    for (int i = 0; i < numTokens; i++) {
-        if (tokens[i].type == TOKEN_OPERATOR) {
-            double left = evaluateExpression(tokens, i);
-            double right = evaluateExpression(&tokens[i + 1], numTokens - i - 1);
-            
-            if (strcmp(tokens[i].value, "=") == 0) {
-                return (left == right) ? 1 : 0;
-            } else if (strcmp(tokens[i].value, "<") == 0) {
-                if (i + 1 < numTokens && tokens[i + 1].type == TOKEN_OPERATOR && 
-                    strcmp(tokens[i + 1].value, ">") == 0) {
-                    // <> (not equal)
-                    right = evaluateExpression(&tokens[i + 2], numTokens - i - 2);
-                    return (left != right) ? 1 : 0;
-                } else if (i + 1 < numTokens && tokens[i + 1].type == TOKEN_OPERATOR && 
-                    strcmp(tokens[i + 1].value, "=") == 0) {
-                    // <= (less than or equal)
-                    right = evaluateExpression(&tokens[i + 2], numTokens - i - 2);
-                    return (left <= right) ? 1 : 0;
-                } else {
-                    return (left < right) ? 1 : 0;
-                }
-            } else if (strcmp(tokens[i].value, ">") == 0) {
-                if (i + 1 < numTokens && tokens[i + 1].type == TOKEN_OPERATOR && 
-                    strcmp(tokens[i + 1].value, "=") == 0) {
-                    // >= (greater than or equal)
-                    right = evaluateExpression(&tokens[i + 2], numTokens - i - 2);
-                    return (left >= right) ? 1 : 0;
-                } else {
-                    return (left > right) ? 1 : 0;
-                }
-            }
-        }
-    }
-    
-    // Handle simple 3-token expression: value op value
-    if (numTokens == 3) {
-        double val1 = getNumericValue(&tokens[0]);
-        double val2 = getNumericValue(&tokens[2]);
-        
-        if (strcmp(tokens[1].value, "+") == 0) return val1 + val2;
-        if (strcmp(tokens[1].value, "-") == 0) return val1 - val2;
-        if (strcmp(tokens[1].value, "*") == 0) return val1 * val2;
-        if (strcmp(tokens[1].value, "/") == 0) {
-            if (val2 == 0) {
-                printf("Division by zero\n");
-                return 0;
-            }
-            return val1 / val2;
-        }
-    }
-    
-    printf("Invalid expression\n");
-    return 0;
+
+    return result;
 }

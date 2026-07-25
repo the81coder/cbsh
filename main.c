@@ -7,6 +7,7 @@ int numLines = 0;
 Variable variables[MAX_VARIABLES];
 int numVariables = 0;
 double dataValues[MAX_DATA_VALUES];
+char dataStringValues[MAX_DATA_VALUES][MAX_LINE_LENGTH];
 int numDataValues = 0;
 int dataReadPtr = 0; // Pointer for READ statement
 int currentLine = 0; // Current line being executed
@@ -27,7 +28,7 @@ char **filename_completion(const char *text, int start, int end) {
 }
 
 int main(int argc, char *argv[]) {
-    char *lineBuffer;
+    char lineBuffer[MAX_LINE_LENGTH];
 
     // Install filename completion
     rl_attempted_completion_function = filename_completion;
@@ -68,13 +69,17 @@ int main(int argc, char *argv[]) {
         printf("READY.\n");
         
         while (1) {
-            lineBuffer = readline("cbsh> ");
-            if (!lineBuffer) {
+            char *inputLine = readline("cbsh> ");
+            if (!inputLine) {
                 break; // Exit on EOF (Ctrl+D)
             }
 
             // Add the line to history
-            add_history(lineBuffer);
+            add_history(inputLine);
+
+            strncpy(lineBuffer, inputLine, MAX_LINE_LENGTH - 1);
+            lineBuffer[MAX_LINE_LENGTH - 1] = '\0';
+            free(inputLine);
 
             Line newLine;
             tokenizeLine(lineBuffer, &newLine);
@@ -87,6 +92,8 @@ int main(int argc, char *argv[]) {
                         executeNew();
                     } else if (newLine.tokens[0].keyword == KW_RUN) {
                         runProgram(0);
+                    } else if (newLine.tokens[0].keyword == KW_HELP) {
+                        executeHelp();
                     } else {
                         executeLine(&newLine);
                     }
@@ -94,7 +101,6 @@ int main(int argc, char *argv[]) {
             } else {
                 addLine(&newLine);
             }
-            free(lineBuffer);
         }
     }
 

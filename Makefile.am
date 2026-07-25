@@ -11,7 +11,7 @@ cbsh_SOURCES = \
     program.c \
     cbsh.h
 
-cbsh_LDADD = 
+cbsh_LDADD = -lm
 
 AM_CFLAGS = -Wall -Wextra -I.
 

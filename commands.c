@@ -1,4 +1,5 @@
 #include "cbsh.h"
+#include <time.h>
 
 // --- Helper Functions ---
 
@@ -58,6 +59,103 @@ void executeFloor(char *arg) {
     printf("Result: %.0f\n", floor(a));
 }
 
+double executeSqr(double val) {
+    if (val < 0) {
+        printf("Error: SQR of negative number\n");
+        return 0;
+    }
+    return sqrt(val);
+}
+
+double executeRnd(double val) {
+    if (val <= 0) return 0;
+    return (double)rand() / (double)RAND_MAX * val;
+}
+
+double executeSin(double val) {
+    return sin(val);
+}
+
+double executeCos(double val) {
+    return cos(val);
+}
+
+double executeTan(double val) {
+    return tan(val);
+}
+
+double executeAtn(double val) {
+    return atan(val);
+}
+
+double executeExp(double val) {
+    return exp(val);
+}
+
+double executeLog(double val) {
+    if (val <= 0) {
+        printf("Error: LOG of non-positive number\n");
+        return 0;
+    }
+    return log(val);
+}
+
+double executeAbs(double val) {
+    return fabs(val);
+}
+
+double executeInt(double val) {
+    return floor(val);
+}
+
+// Execute HELP command
+void executeHelp() {
+    printf("CBSH - Commodore BASIC Shell, version 1.1\n");
+    printf("Supported commands:\n");
+    printf("  LIST [n] [-m]  - List program lines\n");
+    printf("  NEW            - Clear program\n");
+    printf("  RUN            - Run program\n");
+    printf("  PRINT expr     - Print expression\n");
+    printf("  INPUT [\"prompt\",] var - Input from user\n");
+    printf("  LET var = expr - Assign value\n");
+    printf("  IF expr THEN stmt - Conditional\n");
+    printf("  FOR var = start TO end [STEP inc] - Loop\n");
+    printf("  NEXT [var]     - End loop\n");
+    printf("  GOTO line      - Jump to line\n");
+    printf("  GOSUB line     - Call subroutine\n");
+    printf("  RETURN         - Return from subroutine\n");
+    printf("  DATA values    - Store data\n");
+    printf("  READ vars      - Read data\n");
+    printf("  RESTORE        - Reset data pointer\n");
+    printf("  END            - Stop program\n");
+    printf("  STOP           - Stop program\n");
+    printf("  CLEAR          - Clear variables\n");
+    printf("  REM comment    - Comment\n");
+    printf("  LOAD \"cmd\"     - Run shell command\n");
+    printf("  DIR            - List directory\n");
+    printf("  SET var = val  - Set environment variable\n");
+    printf("  TAB(n)         - Tab in PRINT\n");
+    printf("  ADD a b / SUB a b / DIV a b / FLOOR a - Math ops\n");
+    printf("Functions: SQR, RND, SIN, COS, TAN, ATN, EXP, LOG, ABS, INT\n");
+}
+
+// Execute STOP command
+void executeStop() {
+    running = false;
+    nextLine = 0;
+    printf("STOP at line %d\n", currentLine);
+}
+
+// Execute CLEAR command
+void executeClear() {
+    numVariables = 0;
+    numDataValues = 0;
+    dataReadPtr = 0;
+    for (int i = 0; i < MAX_VARIABLES; i++) {
+        variables[i].name[0] = '\0';
+    }
+}
+
 // Execute NEW command
 void executeNew() {
     numLines = 0;
@@ -113,6 +211,14 @@ void executePrint(Token *tokens, int numTokens) {
                 }
                 break;
             case TOKEN_IDENTIFIER: {
+                // Check if this is part of an expression
+                if (i + 1 < numTokens && tokens[i + 1].type == TOKEN_OPERATOR &&
+                    strchr("+-*/=<>", tokens[i + 1].value[0]) != NULL) {
+                    double val = evaluateExpression(&tokens[i], numTokens - i);
+                    printf("%g", val);
+                    i = numTokens; // Skip remaining tokens (already evaluated)
+                    break;
+                }
                 Variable *var = findVariable(tokens[i].value);
                 if (var) {
                     if (var->type == VAR_TYPE_NUMERIC) {
@@ -125,9 +231,18 @@ void executePrint(Token *tokens, int numTokens) {
                 }
                 break;
             }
-            case TOKEN_NUMBER:
+            case TOKEN_NUMBER: {
+                // Check if this is part of an expression
+                if (i + 1 < numTokens && tokens[i + 1].type == TOKEN_OPERATOR &&
+                    strchr("+-*/=<>", tokens[i + 1].value[0]) != NULL) {
+                    double val = evaluateExpression(&tokens[i], numTokens - i);
+                    printf("%g", val);
+                    i = numTokens; // Skip remaining tokens (already evaluated)
+                    break;
+                }
                 printf("%g", atof(tokens[i].value));
                 break;
+            }
             case TOKEN_OPERATOR:
                 if (strcmp(tokens[i].value, ",") == 0) {
                     printf("\t");
@@ -145,6 +260,19 @@ void executePrint(Token *tokens, int numTokens) {
                             printf(" ");
                         }
                         i++;
+                    }
+                } else if (tokens[i].keyword == KW_SQR || tokens[i].keyword == KW_SIN ||
+                           tokens[i].keyword == KW_COS || tokens[i].keyword == KW_TAN ||
+                           tokens[i].keyword == KW_ATN || tokens[i].keyword == KW_EXP ||
+                           tokens[i].keyword == KW_LOG || tokens[i].keyword == KW_ABS ||
+                           tokens[i].keyword == KW_INT || tokens[i].keyword == KW_RND) {
+                    double val = evaluateExpression(&tokens[i], numTokens - i);
+                    printf("%g", val);
+                    int parenDepth = 1;
+                    while (parenDepth > 0 && i + 1 < numTokens) {
+                        i++;
+                        if (tokens[i].type == TOKEN_OPERATOR && tokens[i].value[0] == '(') parenDepth++;
+                        else if (tokens[i].type == TOKEN_OPERATOR && tokens[i].value[0] == ')') parenDepth--;
                     }
                 } else {
                     printf(" ");
@@ -317,8 +445,13 @@ void executeLet(Token *tokens, int numTokens) {
         return;
     }
 
+    int startIndex = 0;
+    if (tokens[0].keyword == KW_LET) {
+        startIndex = 1;
+    }
+
     int assignmentOpIndex = -1;
-    for (int i = 0; i < numTokens; i++) {
+    for (int i = startIndex; i < numTokens; i++) {
         if (tokens[i].type == TOKEN_OPERATOR && strcmp(tokens[i].value, "=") == 0) {
             assignmentOpIndex = i;
             break;
@@ -331,7 +464,7 @@ void executeLet(Token *tokens, int numTokens) {
     }
 
     char varName[MAX_LINE_LENGTH];
-    strncpy(varName, tokens[0].value, sizeof(varName) - 1);
+    strncpy(varName, tokens[startIndex].value, sizeof(varName) - 1);
     varName[sizeof(varName) - 1] = '\0';
 
     VarType varType;
@@ -386,7 +519,7 @@ void executeIf(Token *tokens, int numTokens) {
 
 // execute for
 void executeFor(Token *tokens, int numTokens) {
-    if (numTokens < 7 || tokens[2].type != TOKEN_OPERATOR || strcmp(tokens[2].value, "=") != 0 || tokens[4].keyword != KW_TO) {
+    if (numTokens < 6 || tokens[2].type != TOKEN_OPERATOR || strcmp(tokens[2].value, "=") != 0 || tokens[4].keyword != KW_TO) {
         printf("Invalid FOR statement\n");
         return;
     }
@@ -502,14 +635,23 @@ void executeData(Token *tokens, int numTokens) {
     for (int i = 1; i < numTokens; i++) {
         if (tokens[i].type == TOKEN_NUMBER) {
             if (numDataValues < MAX_DATA_VALUES) {
-                dataValues[numDataValues++] = atof(tokens[i].value);
+                dataValues[numDataValues] = atof(tokens[i].value);
+                dataStringValues[numDataValues][0] = '\0';
+                numDataValues++;
             } else {
                 printf("Too many DATA values\n");
                 return;
             }
         } else if (tokens[i].type == TOKEN_STRING) {
-            printf("String DATA not yet implemented\n");
-            return;
+            if (numDataValues < MAX_DATA_VALUES) {
+                dataValues[numDataValues] = 0;
+                strncpy(dataStringValues[numDataValues], tokens[i].value, MAX_LINE_LENGTH - 1);
+                dataStringValues[numDataValues][MAX_LINE_LENGTH - 1] = '\0';
+                numDataValues++;
+            } else {
+                printf("Too many DATA values\n");
+                return;
+            }
         }
     }
 }
@@ -523,18 +665,20 @@ void executeRead(Token *tokens, int numTokens) {
 
     for (int i = 1; i < numTokens; i++) {
         if (tokens[i].type == TOKEN_IDENTIFIER) {
-            Variable *var = findVariable(tokens[i].value);
-            if (!var) {
-                addOrUpdateVariable(tokens[i].value, VAR_TYPE_NUMERIC, 0, "");
-                var = findVariable(tokens[i].value);
-            }
-
-            if (dataReadPtr < numDataValues) {
-                var->numValue = dataValues[dataReadPtr++];
-            } else {
+            if (dataReadPtr >= numDataValues) {
                 printf("Out of DATA\n");
                 return;
             }
+
+            bool isString = strchr(tokens[i].value, '$') != NULL;
+            if (isString) {
+                addOrUpdateVariable(tokens[i].value, VAR_TYPE_STRING, 0,
+                    dataStringValues[dataReadPtr]);
+            } else {
+                addOrUpdateVariable(tokens[i].value, VAR_TYPE_NUMERIC,
+                    dataValues[dataReadPtr], "");
+            }
+            dataReadPtr++;
         }
     }
 }
@@ -703,6 +847,138 @@ case KW_FLOOR:
         printf("Syntax error: FLOOR requires one argument\n");
     }
     break;
+        case KW_SQR:
+            if (line->numTokens >= 2) {
+                double val;
+                if (line->tokens[1].type == TOKEN_OPERATOR && line->tokens[1].value[0] == '(')
+                    val = evaluateExpression(&line->tokens[0], line->numTokens);
+                else
+                    val = evaluateExpression(&line->tokens[1], line->numTokens - 1);
+                printf("%g\n", executeSqr(val));
+            } else {
+                printf("Syntax error: SQR requires an argument\n");
+            }
+            break;
+        case KW_RND:
+            if (line->numTokens >= 2) {
+                double val;
+                if (line->tokens[1].type == TOKEN_OPERATOR && line->tokens[1].value[0] == '(')
+                    val = evaluateExpression(&line->tokens[0], line->numTokens);
+                else
+                    val = evaluateExpression(&line->tokens[1], line->numTokens - 1);
+                printf("%g\n", executeRnd(val));
+            } else {
+                printf("%g\n", executeRnd(1));
+            }
+            break;
+        case KW_SIN:
+            if (line->numTokens >= 2) {
+                double val;
+                if (line->tokens[1].type == TOKEN_OPERATOR && line->tokens[1].value[0] == '(')
+                    val = evaluateExpression(&line->tokens[0], line->numTokens);
+                else
+                    val = evaluateExpression(&line->tokens[1], line->numTokens - 1);
+                printf("%g\n", executeSin(val));
+            } else {
+                printf("Syntax error: SIN requires an argument\n");
+            }
+            break;
+        case KW_COS:
+            if (line->numTokens >= 2) {
+                double val;
+                if (line->tokens[1].type == TOKEN_OPERATOR && line->tokens[1].value[0] == '(')
+                    val = evaluateExpression(&line->tokens[0], line->numTokens);
+                else
+                    val = evaluateExpression(&line->tokens[1], line->numTokens - 1);
+                printf("%g\n", executeCos(val));
+            } else {
+                printf("Syntax error: COS requires an argument\n");
+            }
+            break;
+        case KW_TAN:
+            if (line->numTokens >= 2) {
+                double val;
+                if (line->tokens[1].type == TOKEN_OPERATOR && line->tokens[1].value[0] == '(')
+                    val = evaluateExpression(&line->tokens[0], line->numTokens);
+                else
+                    val = evaluateExpression(&line->tokens[1], line->numTokens - 1);
+                printf("%g\n", executeTan(val));
+            } else {
+                printf("Syntax error: TAN requires an argument\n");
+            }
+            break;
+        case KW_ATN:
+            if (line->numTokens >= 2) {
+                double val;
+                if (line->tokens[1].type == TOKEN_OPERATOR && line->tokens[1].value[0] == '(')
+                    val = evaluateExpression(&line->tokens[0], line->numTokens);
+                else
+                    val = evaluateExpression(&line->tokens[1], line->numTokens - 1);
+                printf("%g\n", executeAtn(val));
+            } else {
+                printf("Syntax error: ATN requires an argument\n");
+            }
+            break;
+        case KW_EXP:
+            if (line->numTokens >= 2) {
+                double val;
+                if (line->tokens[1].type == TOKEN_OPERATOR && line->tokens[1].value[0] == '(')
+                    val = evaluateExpression(&line->tokens[0], line->numTokens);
+                else
+                    val = evaluateExpression(&line->tokens[1], line->numTokens - 1);
+                printf("%g\n", executeExp(val));
+            } else {
+                printf("Syntax error: EXP requires an argument\n");
+            }
+            break;
+        case KW_LOG:
+            if (line->numTokens >= 2) {
+                double val;
+                if (line->tokens[1].type == TOKEN_OPERATOR && line->tokens[1].value[0] == '(')
+                    val = evaluateExpression(&line->tokens[0], line->numTokens);
+                else
+                    val = evaluateExpression(&line->tokens[1], line->numTokens - 1);
+                printf("%g\n", executeLog(val));
+            } else {
+                printf("Syntax error: LOG requires an argument\n");
+            }
+            break;
+        case KW_ABS:
+            if (line->numTokens >= 2) {
+                double val;
+                if (line->tokens[1].type == TOKEN_OPERATOR && line->tokens[1].value[0] == '(')
+                    val = evaluateExpression(&line->tokens[0], line->numTokens);
+                else
+                    val = evaluateExpression(&line->tokens[1], line->numTokens - 1);
+                printf("%g\n", executeAbs(val));
+            } else {
+                printf("Syntax error: ABS requires an argument\n");
+            }
+            break;
+        case KW_INT:
+            if (line->numTokens >= 2) {
+                double val;
+                if (line->tokens[1].type == TOKEN_OPERATOR && line->tokens[1].value[0] == '(')
+                    val = evaluateExpression(&line->tokens[0], line->numTokens);
+                else
+                    val = evaluateExpression(&line->tokens[1], line->numTokens - 1);
+                printf("%g\n", executeInt(val));
+            } else {
+                printf("Syntax error: INT requires an argument\n");
+            }
+            break;
+        case KW_STOP:
+            executeStop();
+            break;
+        case KW_CLEAR:
+            executeClear();
+            break;
+        case KW_HELP:
+            executeHelp();
+            break;
+        case KW_RANDOMIZE:
+            srand(time(NULL));
+            break;
         case KW_RESTORE:
             executeRestore();
             break;

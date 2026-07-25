@@ -38,7 +38,7 @@ typedef enum {
     KW_CLEAR, KW_STOP, KW_TAB, KW_RESTORE, KW_ABS, KW_END, KW_INT,
     KW_RETURN, KW_STEP, KW_GOTO, KW_GOSUB, KW_SET, KW_TO, KW_RUN, KW_NONE,
     KW_LOAD, KW_DIR, KW_ADD, KW_SUB, KW_DIV, KW_FLOOR,
-    KW_DUMP, KW_PAUSE  // Unofficial commands
+    KW_DUMP, KW_PAUSE, KW_COS, KW_TAN, KW_ATN, KW_EXP, KW_LOG, KW_HELP, KW_RANDOMIZE
 } Keyword;
 
 // A structure to represent a token
@@ -80,6 +80,7 @@ extern int numLines;
 extern Variable variables[MAX_VARIABLES];
 extern int numVariables;
 extern double dataValues[MAX_DATA_VALUES];
+extern char dataStringValues[MAX_DATA_VALUES][MAX_LINE_LENGTH];
 extern int numDataValues;
 extern int dataReadPtr; // Pointer for READ statement
 extern int currentLine; // Current line being executed
@@ -127,22 +128,28 @@ void executeClear();
 void runProgram(int startLine);
 void addLine(Line *newLine);
 
+void executeHelp();
+void executeStop();
+void executeClear();
+
 // Math operations
-void executeAdd(Token *tokens, int numTokens);
-void executeSub(Token *tokens, int numTokens);
-void executeDiv(Token *tokens, int numTokens);
-void executeFloor(Token *tokens, int numTokens);
+void executeAdd(char *arg1, char *arg2);
+void executeSub(char *arg1, char *arg2);
+void executeDiv(char *arg1, char *arg2);
+void executeFloor(char *arg);
+double executeSqr(double val);
+double executeRnd(double val);
+double executeSin(double val);
+double executeCos(double val);
+double executeTan(double val);
+double executeAtn(double val);
+double executeExp(double val);
+double executeLog(double val);
+double executeAbs(double val);
+double executeInt(double val);
 
 // Unofficial commands
 void executeDump();
 void executePause(Token *tokens, int numTokens);
-
-// Math function evaluation
-double evalSqr(double value);
-double evalRnd(double value);
-double evalSin(double value);
-double evalAbs(double value);
-double evalInt(double value);
-int evalUsr(double address);
 
 #endif // CBSH_H
