@@ -12,6 +12,50 @@ double executeLog(double);
 double executeAbs(double);
 double executeInt(double);
 
+// Math function implementations
+double evalSqr(double value) {
+    if (value < 0) {
+        printf("Error: SQR of negative number\n");
+        return 0;
+    }
+    return sqrt(value);
+}
+
+double evalRnd(double value) {
+    static bool seeded = false;
+
+    if (!seeded) {
+        srand(time(NULL));
+        seeded = true;
+    }
+
+    if (value < 0) {
+        srand((unsigned int)(-value));
+        return 0;
+    } else if (value == 0) {
+        return (double)rand() / RAND_MAX;
+    } else {
+        return (double)(rand() % (int)value);
+    }
+}
+
+double evalSin(double value) {
+    return sin(value);
+}
+
+double evalAbs(double value) {
+    return fabs(value);
+}
+
+double evalInt(double value) {
+    return floor(value);
+}
+
+int evalUsr(double address) {
+    printf("USR function not implemented (would call address %g)\n", address);
+    return 0;
+}
+
 // Evaluate a function call (e.g., SQR(9) -> tokens are [KW_SQR, "(", num, ")"])
 static double evaluateFunctionCall(Token *tokens, int numTokens) {
     if (numTokens < 4 || tokens[1].type != TOKEN_OPERATOR || tokens[1].value[0] != '(') {

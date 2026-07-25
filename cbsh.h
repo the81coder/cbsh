@@ -147,6 +147,12 @@ double executeExp(double val);
 double executeLog(double val);
 double executeAbs(double val);
 double executeInt(double val);
+double evalSqr(double value);
+double evalRnd(double value);
+double evalSin(double value);
+double evalAbs(double value);
+double evalInt(double value);
+int evalUsr(double address);
 
 // Unofficial commands
 void executeDump();
